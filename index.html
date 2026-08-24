@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DER Designer - Canvas Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script> 
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            overflow: hidden;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen w-screen flex flex-col text-slate-800 antialiased overflow-hidden">
+
+    <header class="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-20 shrink-0 text-slate-800 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg text-white shadow-md shadow-blue-500/20">
+                <i data-lucide="database" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 id="header-project-title" class="font-bold text-sm leading-none text-slate-900 tracking-wide">DER Designer</h1>
+            </div>
+        </div>
+
+        <!-- Header Actions -->
+        <div class="flex items-center gap-2">
+            <button id="btn-new-der" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 border border-slate-300 px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Crear un nuevo diagrama DER">
+                <i data-lucide="file-plus" class="w-4 h-4 text-blue-600"></i>
+                <span>Nuevo DER</span>
+            </button>
+
+            <div class="h-5 w-px bg-slate-200 mx-0.5"></div>
+
+            <button id="btn-save-cache" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Guardar proyecto en el caché del navegador">
+                <i data-lucide="save" class="w-4 h-4 text-emerald-600"></i>
+                <span>Guardar</span>
+            </button>
+            <button id="btn-load-file" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Cargar proyecto desde un archivo .der o .json">
+                <i data-lucide="folder-open" class="w-4 h-4 text-amber-600"></i>
+                <span>Cargar</span>
+            </button>
+            <button id="btn-download-der" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Descargar archivo .der del diagrama">
+                <i data-lucide="download" class="w-4 h-4 text-blue-600"></i>
+                <span>Descargar</span>
+            </button>
+            <input type="file" id="inp-load-file" accept=".der,.json,application/json" class="hidden" />
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Left Main Area: Canvas + Bottom Resizable Compiler Drawer -->
+        <div class="flex-1 flex flex-col overflow-hidden relative">
+
+            <!-- Canvas Container -->
+            <div id="canvas-container" class="flex-1 relative bg-white overflow-hidden cursor-crosshair">
+                <canvas id="der-canvas" class="w-full h-full block"></canvas>
+
+                <!-- Floating Canvas Controls -->
+                <div class="absolute top-4 left-4 z-10 flex flex-col gap-2">
+                    <button id="btn-add-entity" class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-md transition w-fit">
+                        <i data-lucide="plus-square" class="w-4 h-4"></i>
+                        <span>Nueva Entidad</span>
+                    </button>
+                </div>
+
+                <!-- Bottom Left Zoom Controls -->
+                <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur border border-slate-200 rounded-lg shadow-md flex items-center gap-1 p-1 text-slate-700 z-10">
+                    <button id="btn-zoom-in" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="Acercar">
+                        <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                    </button>
+                    <span id="zoom-level" class="text-xs font-mono px-2 min-w-[50px] text-center select-none text-slate-600 font-medium">100%</span>
+                    <button id="btn-zoom-out" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="Alejar">
+                        <i data-lucide="zoom-out" class="w-4 h-4"></i>
+                    </button>
+                    <button id="btn-zoom-reset" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="Restablecer Vista">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bottom Resizable Compiler Footer Drawer -->
+            <div id="compiler-drawer" class="bg-white border-t border-slate-200 flex flex-col z-30 shadow-2xl relative shrink-0 transition-none" style="height: 52px;">
+                
+                <div id="compiler-drag-handle" class="h-2 w-full bg-slate-100 hover:bg-slate-200 cursor-ns-resize flex items-center justify-center border-b border-slate-200 shrink-0 group transition-colors">
+                    <div class="w-12 h-1 bg-slate-300 group-hover:bg-slate-400 rounded-full transition-colors"></div>
+                </div>
+
+                <div class="h-12 px-4 bg-slate-50 flex items-center justify-between shrink-0 select-none border-b border-slate-200">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2 font-bold text-xs text-purple-900">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-purple-600"></i>
+                            <span>Compilador & Evaluación Semántica DER</span>
+                        </div>
+                        <span id="compiler-score-badge" class="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700">--/100</span>
+                    </div>
+
+                    <div class="flex items-center gap-2 py-1">
+                        <button id="btn-export-sql-footer" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition">
+                            <i data-lucide="code" class="w-3.5 h-3.5"></i>
+                            <span>Ver SQL</span>
+                        </button>
+                        <button id="btn-run-compiler" class="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition">
+                            <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                            <span>Ejecutar Compilador</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="compiler-content-area" class="flex-1 overflow-y-auto p-4 space-y-3 text-slate-700 text-xs hidden">
+                    <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1">
+                        <p id="compiler-summary-text" class="text-[11px] text-purple-800 leading-relaxed">
+                            Presiona "Ejecutar Compilador" para auditar reglas de integridad relacional, claves primarias y claves foráneas.
+                        </p>
+                    </div>
+
+                    <div id="compiler-loading" class="hidden text-center py-6 space-y-2">
+                        <div class="inline-block animate-spin rounded-full h-6 w-6 border-3 border-purple-600 border-t-transparent"></div>
+                        <p class="font-medium text-slate-600 text-xs">Analizando reglas relacionales y estructura del modelo...</p>
+                    </div>
+
+                    <div id="compiler-results-list" class="space-y-2">
+                        <!-- Diagnostic cards injected dynamically -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Inspector Sidebar -->
+        <aside id="inspector-panel" class="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-lg">
+            
+            <div class="border-b border-slate-200 bg-slate-50/80 px-4 py-3 flex items-center justify-between">
+                <div class="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                    <i data-lucide="sliders" class="w-4 h-4 text-blue-600"></i>
+                    <span>Inspector de Propiedades</span>
+                </div>
+                <span id="inspector-type-badge" class="font-mono font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px]">NADA SELECCIONADO</span>
+            </div>
+
+            <div id="panel-inspector-content" class="flex-1 overflow-y-auto p-4 space-y-5 text-slate-700 text-xs">
+                <!-- UNSELECTED STATE -->
+                <div id="inspector-empty" class="text-center py-12 text-slate-500 space-y-2">
+                    <i data-lucide="mouse-pointer" class="w-8 h-8 mx-auto text-slate-400 opacity-60"></i>
+                    <p class="font-medium">Haz clic en una Entidad o Relación en el Canvas para editar sus propiedades.</p>
+                    <p class="text-[11px] text-slate-400">Arrastra desde los pines azules de las cajas para conectar entidades.</p>
+                </div>
+
+                <!-- ENTITY INSPECTOR -->
+                <div id="inspector-entity" class="hidden space-y-4">
+                    <div>
+                        <label class="block font-semibold mb-1 text-slate-700">Nombre de la Entidad</label>
+                        <input id="inp-entity-name" type="text" class="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold mb-1 text-slate-700">Color de Cabecera</label>
+                        <div class="flex gap-2">
+                            <button class="color-btn w-7 h-7 rounded-full bg-slate-700 border-2 border-transparent hover:scale-110 transition" data-color="#334155"></button>
+                            <button class="color-btn w-7 h-7 rounded-full bg-blue-600 border-2 border-transparent hover:scale-110 transition" data-color="#2563eb"></button>
+                            <button class="color-btn w-7 h-7 rounded-full bg-emerald-600 border-2 border-transparent hover:scale-110 transition" data-color="#059669"></button>
+                            <button class="color-btn w-7 h-7 rounded-full bg-amber-600 border-2 border-transparent hover:scale-110 transition" data-color="#d97706"></button>
+                            <button class="color-btn w-7 h-7 rounded-full bg-purple-600 border-2 border-transparent hover:scale-110 transition" data-color="#7c3aed"></button>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-200 pt-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="font-semibold text-slate-700">Atributos (Tabla Mini-Excel)</label>
+                            <button id="btn-add-attr" class="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 text-[11px]">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Agregar
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mb-2">
+                            Usa <span class="font-mono text-amber-600 font-bold">*</span> para Clave Primaria y <span class="font-mono text-blue-600 font-bold">FK</span> para Clave Foránea.
+                        </p>
+
+                        <div id="attr-list" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            <!-- Attribute rows injected dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-200 pt-3 flex justify-end">
+                        <button id="btn-delete-entity" class="text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded flex items-center gap-1.5 transition font-medium">
+                            <i data-lucide="trash" class="w-4 h-4"></i> Eliminar Entidad
+                        </button>
+                    </div>
+                </div>
+
+                <!-- RELATIONSHIP INSPECTOR -->
+                <div id="inspector-rel" class="hidden space-y-4">
+                    <div>
+                        <label class="block font-semibold mb-1 text-slate-700">Etiqueta de la Relación</label>
+                        <input id="inp-rel-name" type="text" placeholder="ej. gobierna a, trabaja en..." class="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold mb-1.5 text-slate-700">Atajos de Cardinalidad</label>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button class="rel-preset-btn bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 py-1.5 px-2 rounded text-[11px] font-mono text-left transition" data-smin="1" data-smax="1" data-tmin="1" data-tmax="1">
+                                1:1 (|| - ||)
+                            </button>
+                            <button class="rel-preset-btn bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 py-1.5 px-2 rounded text-[11px] font-mono text-left transition" data-smin="0" data-smax="1" data-tmin="1" data-tmax="1">
+                                1:1c (O| - ||)
+                            </button>
+                            <button class="rel-preset-btn bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 py-1.5 px-2 rounded text-[11px] font-mono text-left transition" data-smin="1" data-smax="1" data-tmin="1" data-tmax="m">
+                                1:m (|| - &lt;|)
+                            </button>
+                            <button class="rel-preset-btn bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 py-1.5 px-2 rounded text-[11px] font-mono text-left transition" data-smin="0" data-smax="1" data-tmin="1" data-tmax="m">
+                                1:mc (O| - &lt;|)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
+                        <div class="font-semibold text-blue-600 flex items-center justify-between">
+                            <span id="lbl-source-entity">Origen</span>
+                            <span class="text-[10px] font-mono text-slate-400">Extremo A</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px] text-slate-500 block">Mínima (0 o 1)</label>
+                                <select id="sel-source-min" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-700">
+                                    <option value="1">1 (Obligatoria)</option>
+                                    <option value="0">0 (Opcional)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-500 block">Máxima (1 o m)</label>
+                                <select id="sel-source-max" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-700">
+                                    <option value="1">1 (Uno)</option>
+                                    <option value="m">m (Muchos)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
+                        <div class="font-semibold text-emerald-600 flex items-center justify-between">
+                            <span id="lbl-target-entity">Destino</span>
+                            <span class="text-[10px] font-mono text-slate-400">Extremo B</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px] text-slate-500 block">Mínima (0 o 1)</label>
+                                <select id="sel-target-min" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-700">
+                                    <option value="1">1 (Obligatoria)</option>
+                                    <option value="0">0 (Opcional)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-500 block">Máxima (1 o m)</label>
+                                <select id="sel-target-max" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-700">
+                                    <option value="1">1 (Uno)</option>
+                                    <option value="m">m (Muchos)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-200 pt-3 flex justify-end">
+                        <button id="btn-delete-rel" class="text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded flex items-center gap-1.5 transition font-medium">
+                            <i data-lucide="trash" class="w-4 h-4"></i> Eliminar Relación
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Nuevo DER Modal -->
+    <div id="modal-new-der" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full flex flex-col overflow-hidden border border-slate-200">
+            <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-plus" class="w-5 h-5 text-blue-600"></i>
+                    <h3 class="font-bold text-sm text-slate-800">Crear Nuevo Diagrama DER</h3>
+                </div>
+                <button id="btn-close-new-der" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4 text-xs text-slate-700">
+                <p class="text-slate-600 leading-relaxed">Ingresa el nombre para tu nuevo proyecto. El canvas actual se reemplazará por un lienzo limpio.</p>
+                <div>
+                    <label class="block font-semibold mb-1 text-slate-700">Nombre del Proyecto</label>
+                    <input id="inp-modal-project-name" type="text" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500 focus:bg-white transition" placeholder="Nombre del proyecto">
+                </div>
+            </div>
+            <div class="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+                <button id="btn-cancel-new-der" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition">
+                    Cancelar
+                </button>
+                <button id="btn-confirm-new-der" class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>Crear</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SQL Export Modal -->
+    <div id="modal-sql" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full flex flex-col max-h-[80vh] overflow-hidden border border-slate-200">
+            <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="code" class="w-5 h-5 text-blue-600"></i>
+                    <h3 class="font-bold text-sm text-slate-800">Código SQL Generado (DDL)</h3>
+                </div>
+                <button id="btn-close-sql" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-4 flex-1 overflow-y-auto bg-slate-900 text-slate-100 font-mono text-xs">
+                <pre id="code-sql" class="whitespace-pre-wrap leading-relaxed"></pre>
+            </div>
+            <div class="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                <span class="text-xs text-slate-500">Generado automáticamente según el esquema DER.</span>
+                <button id="btn-copy-sql" class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                    <span>Copiar Código</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // App State
+        const state = {
+            projectName: '',
+            entities: [],
+            relationships: [],
+            selectedEntityId: null,
+            selectedRelId: null,
+            hoveredEntityId: null,
+            hoveredPin: null,
+            hoveredRelId: null,
+            
+            // Interaction
+            isDraggingEntity: false,
+            dragOffset: { x: 0, y: 0 },
+            
+            isConnecting: false,
+            connectSource: null,
+            mousePos: { x: 0, y: 0 },
+
+            // Pan & Zoom
+            scale: 1,
+            pan: { x: 0, y: 0 },
+            isPanning: false,
+            panStart: { x: 0, y: 0 },
+
+            validationResults: null
+        };
+
+        const CACHE_KEY = 'der_designer_active_project';
+
+        function generateTimestampName() {
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10);
+            const timeStr = now.toTimeString().slice(0, 5).replace(':', '');
+            return `DER_${dateStr}_${timeStr}`;
+        }
+
+        function saveToCache(showVisualFeedback = false) {
+            const projectData = {
+                appName: "DER Designer",
+                version: "1.0",
+                timestamp: new Date().toISOString(),
+                projectName: state.projectName || generateTimestampName(),
+                entities: state.entities,
+                relationships: state.relationships,
+                pan: state.pan,
+                scale: state.scale
+            };
+
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(projectData));
+            } catch (err) {
+                console.warn('No se pudo guardar en caché local:', err);
+            }
+        }
+
+        function loadFromCache() {
+            try {
+                const cachedDataStr = localStorage.getItem(CACHE_KEY);
+                if (cachedDataStr) {
+                    const parsed = JSON.parse(cachedDataStr);
+                    if (parsed && Array.isArray(parsed.entities) && Array.isArray(parsed.relationships)) {
+                        state.projectName = parsed.projectName || generateTimestampName();
+                        state.entities = parsed.entities;
+                        state.relationships = parsed.relationships;
+                        if (parsed.pan) state.pan = parsed.pan;
+                        if (parsed.scale) state.scale = parsed.scale;
+
+                        updateHeaderTitle();
+                        return true;
+                    }
+                }
+            } catch (err) {
+                console.warn('Error al cargar caché local:', err);
+            }
+            return false;
+        }
+
+        function updateHeaderTitle() {
+            const headerTitle = document.getElementById('header-project-title');
+            if (headerTitle) {
+                headerTitle.textContent = state.projectName ? `DER Designer - ${state.projectName}` : 'DER Designer';
+            }
+        }
+
+        function createNewProject(customName) {
+            state.projectName = customName || generateTimestampName();
+            state.entities = [];
+            state.relationships = [];
+            state.selectedEntityId = null;
+            state.selectedRelId = null;
+            state.pan = { x: 0, y: 0 };
+            state.scale = 1;
+
+            updateHeaderTitle();
+            saveToCache(false);
+            updateInspector();
+            draw();
+        }
+
+        const canvas = document.getElementById('der-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            draw();
+        }
+
+        function getEntityPinCoords(entity, pin) {
+            const w = entity.width || 180;
+            const h = calculateEntityHeight(entity);
+            switch(pin) {
+                case 'top': return { x: entity.x + w/2, y: entity.y };
+                case 'bottom': return { x: entity.x + w/2, y: entity.y + h };
+                case 'left': return { x: entity.x, y: entity.y + h/2 };
+                case 'right': return { x: entity.x + w, y: entity.y + h/2 };
+            }
+            return { x: entity.x + w/2, y: entity.y + h/2 };
+        }
+
+        function calculateEntityHeight(entity) {
+            const headerHeight = 32;
+            const rowHeight = 24;
+            const rowCount = Math.max(entity.attributes.length, 1);
+            return headerHeight + (rowCount * rowHeight) + 6;
+        }
+
+        function draw() {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            ctx.save();
+            ctx.clearRect(0, 0, width, height);
+
+            drawGrid(width, height);
+
+            ctx.translate(state.pan.x, state.pan.y);
+            ctx.scale(state.scale, state.scale);
+
+            state.relationships.forEach(rel => drawRelationship(rel));
+
+            if (state.isConnecting && state.connectSource) {
+                const srcEntity = state.entities.find(e => e.id === state.connectSource.entityId);
+                if (srcEntity) {
+                    const srcPt = getEntityPinCoords(srcEntity, state.connectSource.pin);
+                    
+                    // Magnetic snap target detection
+                    const snapTarget = findConnectTarget(state.mousePos);
+                    let targetX = state.mousePos.x;
+                    let targetY = state.mousePos.y;
+
+                    if (snapTarget) {
+                        const tgtEntity = state.entities.find(e => e.id === snapTarget.entityId);
+                        if (tgtEntity) {
+                            const tgtPt = getEntityPinCoords(tgtEntity, snapTarget.pin);
+                            targetX = tgtPt.x;
+                            targetY = tgtPt.y;
+
+                            // Draw magnetic snap glow ring
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.arc(tgtPt.x, tgtPt.y, 10, 0, Math.PI * 2);
+                            ctx.fillStyle = 'rgba(37, 99, 235, 0.25)';
+                            ctx.fill();
+                            ctx.strokeStyle = '#2563eb';
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                    }
+
+                    ctx.beginPath();
+                    ctx.setLineDash([4, 4]);
+                    ctx.moveTo(srcPt.x, srcPt.y);
+                    ctx.lineTo(targetX, targetY);
+                    ctx.strokeStyle = '#3b82f6';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            state.entities.forEach(entity => drawEntity(entity));
+
+            ctx.restore();
+        }
+
+        function drawGrid(w, h) {
+            ctx.save();
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.lineWidth = 1;
+            const gridSize = 25 * state.scale;
+            const offsetX = state.pan.x % gridSize;
+            const offsetY = state.pan.y % gridSize;
+
+            ctx.beginPath();
+            for (let x = offsetX; x < w; x += gridSize) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+            }
+            for (let y = offsetY; y < h; y += gridSize) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawEntity(entity) {
+            const w = entity.width || 180;
+            const h = calculateEntityHeight(entity);
+            const isSelected = entity.id === state.selectedEntityId;
+            const isHovered = entity.id === state.hoveredEntityId;
+
+            ctx.save();
+
+            ctx.shadowColor = 'rgba(15, 23, 42, 0.12)';
+            ctx.shadowBlur = isSelected ? 12 : 6;
+            ctx.shadowOffsetY = isSelected ? 4 : 2;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.roundRect(entity.x, entity.y, w, h, 8);
+            ctx.fill();
+
+            ctx.shadowColor = 'transparent';
+            ctx.lineWidth = isSelected ? 2.5 : (isHovered ? 2 : 1);
+            ctx.strokeStyle = isSelected ? '#2563eb' : (isHovered ? '#3b82f6' : '#cbd5e1');
+            ctx.stroke();
+
+            ctx.fillStyle = entity.color || '#2563eb';
+            ctx.beginPath();
+            ctx.roundRect(entity.x, entity.y, w, 32, [8, 8, 0, 0]);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(entity.name, entity.x + w/2, entity.y + 20);
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(entity.x, entity.y + 32);
+            ctx.lineTo(entity.x + w, entity.y + 32);
+            ctx.stroke();
+
+            const rowH = 24;
+            const startY = entity.y + 32;
+
+            entity.attributes.forEach((attr, idx) => {
+                const y = startY + idx * rowH;
+
+                if (idx % 2 === 1) {
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillRect(entity.x + 1, y, w - 2, rowH);
+                }
+
+                ctx.strokeStyle = '#f1f5f9';
+                ctx.beginPath();
+                ctx.moveTo(entity.x, y + rowH);
+                ctx.lineTo(entity.x + w, y + rowH);
+                ctx.stroke();
+
+                if (attr.pk) {
+                    ctx.fillStyle = '#d97706';
+                    ctx.font = 'bold 15px JetBrains Mono, monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('*', entity.x + 12, y + 17);
+                }
+
+                ctx.fillStyle = attr.pk ? '#0f172a' : (attr.fk ? '#1d4ed8' : '#334155');
+                ctx.font = (attr.pk ? 'bold ' : '') + '11px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                const displayName = (attr.optional ? '? ' : '') + attr.name;
+                ctx.fillText(displayName, entity.x + 24, y + 16);
+
+                if (attr.fk) {
+                    ctx.fillStyle = '#2563eb';
+                    ctx.font = 'bold 10px JetBrains Mono, monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText('(FK)', entity.x + w - 8, y + 16);
+                }
+            });
+
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.beginPath();
+            ctx.moveTo(entity.x + 20, startY);
+            ctx.lineTo(entity.x + 20, startY + entity.attributes.length * rowH);
+            ctx.moveTo(entity.x + w - 35, startY);
+            ctx.lineTo(entity.x + w - 35, startY + entity.attributes.length * rowH);
+            ctx.stroke();
+
+            if (isSelected || isHovered || state.isConnecting) {
+                ['top', 'bottom', 'left', 'right'].forEach(pin => {
+                    const pt = getEntityPinCoords(entity, pin);
+                    const isPinHovered = state.hoveredPin && state.hoveredPin.entityId === entity.id && state.hoveredPin.pin === pin;
+
+                    ctx.fillStyle = isPinHovered ? '#1d4ed8' : '#2563eb';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, isPinHovered ? 6 : 4.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+            }
+
+            ctx.restore();
+        }
+
+        function drawRelationship(rel) {
+            const srcEntity = state.entities.find(e => e.id === rel.sourceId);
+            const tgtEntity = state.entities.find(e => e.id === rel.targetId);
+            if (!srcEntity || !tgtEntity) return;
+
+            const srcPt = getEntityPinCoords(srcEntity, rel.sourcePin || 'right');
+            const tgtPt = getEntityPinCoords(tgtEntity, rel.targetPin || 'left');
+
+            const isSelected = rel.id === state.selectedRelId;
+            const isHovered = rel.id === state.hoveredRelId;
+
+            ctx.save();
+            ctx.strokeStyle = isSelected ? '#2563eb' : (isHovered ? '#3b82f6' : '#475569');
+            ctx.lineWidth = isSelected ? 2.5 : 2;
+
+            ctx.beginPath();
+            ctx.moveTo(srcPt.x, srcPt.y);
+            ctx.lineTo(tgtPt.x, tgtPt.y);
+            ctx.stroke();
+
+            if (rel.name) {
+                const midX = (srcPt.x + tgtPt.x) / 2;
+                const midY = (srcPt.y + tgtPt.y) / 2;
+
+                ctx.font = '500 11px Inter, sans-serif';
+                const textWidth = ctx.measureText(rel.name).width;
+
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = isSelected ? '#2563eb' : '#cbd5e1';
+                ctx.lineWidth = 1;
+
+                ctx.beginPath();
+                ctx.roundRect(midX - textWidth/2 - 6, midY - 10, textWidth + 12, 20, 4);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#1e293b';
+                ctx.textAlign = 'center';
+                ctx.fillText(rel.name, midX, midY + 4);
+            }
+
+            drawCardinalitySymbol(srcPt, tgtPt, rel.sourceMin, rel.sourceMax, rel.sourcePin);
+            drawCardinalitySymbol(tgtPt, srcPt, rel.targetMin, rel.targetMax, rel.targetPin);
+
+            ctx.restore();
+        }
+
+        function drawCardinalitySymbol(pt, targetPt, minVal, maxVal, pinDirection) {
+            ctx.save();
+            ctx.strokeStyle = '#334155';
+            ctx.fillStyle = '#334155';
+            ctx.lineWidth = 2;
+
+            const angle = Math.atan2(targetPt.y - pt.y, targetPt.x - pt.x);
+            ctx.translate(pt.x, pt.y);
+            ctx.rotate(angle);
+
+            const tickH = 6;
+
+            if (maxVal == '1') {
+                ctx.beginPath();
+                ctx.moveTo(6, -tickH);
+                ctx.lineTo(6, tickH);
+                ctx.stroke();
+            } else if (maxVal == 'm' || maxVal == 'n') {
+                ctx.beginPath();
+                ctx.moveTo(12, 0);
+                ctx.lineTo(0, -tickH);
+                ctx.moveTo(12, 0);
+                ctx.lineTo(0, tickH);
+                ctx.stroke();
+            }
+
+            const minDist = (maxVal == 'm' || maxVal == 'n') ? 18 : 14;
+
+            if (minVal == 1) {
+                ctx.beginPath();
+                ctx.moveTo(minDist, -tickH);
+                ctx.lineTo(minDist, tickH);
+                ctx.stroke();
+            } else if (minVal == 0) {
+                ctx.beginPath();
+                ctx.arc(minDist, 0, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function getCanvasMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left - state.pan.x) / state.scale,
+                y: (e.clientY - rect.top - state.pan.y) / state.scale
+            };
+        }
+
+        function hitTestEntity(pos) {
+            for (let i = state.entities.length - 1; i >= 0; i--) {
+                const e = state.entities[i];
+                const w = e.width || 180;
+                const h = calculateEntityHeight(e);
+                if (pos.x >= e.x && pos.x <= e.x + w && pos.y >= e.y && pos.y <= e.y + h) {
+                    return e;
+                }
+            }
+            return null;
+        }
+
+        function hitTestPin(pos) {
+            const screenRadius = 15; // Generous starting radius for clicking pins
+            const worldRadiusSq = Math.pow(screenRadius / state.scale, 2);
+
+            for (let e of state.entities) {
+                for (let pin of ['top', 'bottom', 'left', 'right']) {
+                    const pt = getEntityPinCoords(e, pin);
+                    const dx = pos.x - pt.x;
+                    const dy = pos.y - pt.y;
+                    if (dx*dx + dy*dy <= worldRadiusSq) {
+                        return { entityId: e.id, pin };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function findConnectTarget(pos) {
+            if (!state.connectSource) return null;
+            const srcEntityId = state.connectSource.entityId;
+
+            // 1. Check if mouse is near any pin of another entity (32px screen snap radius)
+            const snapRadiusScreen = 32;
+            const snapRadiusSq = Math.pow(snapRadiusScreen / state.scale, 2);
+            let closestPin = null;
+            let minDistanceSq = snapRadiusSq;
+
+            for (let e of state.entities) {
+                if (e.id === srcEntityId) continue;
+                for (let pin of ['top', 'bottom', 'left', 'right']) {
+                    const pt = getEntityPinCoords(e, pin);
+                    const dx = pos.x - pt.x;
+                    const dy = pos.y - pt.y;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq <= minDistanceSq) {
+                        minDistanceSq = distSq;
+                        closestPin = { entityId: e.id, pin };
+                    }
+                }
+            }
+
+            if (closestPin) return closestPin;
+
+            // 2. Fallback: check if mouse is inside another entity box and pick closest pin
+            const targetEntity = hitTestEntity(pos);
+            if (targetEntity && targetEntity.id !== srcEntityId) {
+                let bestPin = 'left';
+                let minDist = Infinity;
+                ['top', 'bottom', 'left', 'right'].forEach(pin => {
+                    const pt = getEntityPinCoords(targetEntity, pin);
+                    const d = Math.hypot(pos.x - pt.x, pos.y - pt.y);
+                    if (d < minDist) {
+                        minDist = d;
+                        bestPin = pin;
+                    }
+                });
+                return { entityId: targetEntity.id, pin: bestPin };
+            }
+
+            return null;
+        }
+
+        function hitTestRelationship(pos) {
+            const tolerance = 10 / state.scale;
+
+            for (let rel of state.relationships) {
+                const srcEntity = state.entities.find(e => e.id === rel.sourceId);
+                const tgtEntity = state.entities.find(e => e.id === rel.targetId);
+                if (!srcEntity || !tgtEntity) continue;
+
+                const p1 = getEntityPinCoords(srcEntity, rel.sourcePin || 'right');
+                const p2 = getEntityPinCoords(tgtEntity, rel.targetPin || 'left');
+
+                const l2 = (p2.x - p1.x)**2 + (p2.y - p1.y)**2;
+                if (l2 === 0) continue;
+                let t = ((pos.x - p1.x) * (p2.x - p1.x) + (pos.y - p1.y) * (p2.y - p1.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                const projX = p1.x + t * (p2.x - p1.x);
+                const projY = p1.y + t * (p2.y - p1.y);
+                const dist = Math.hypot(pos.x - projX, pos.y - projY);
+
+                if (dist <= tolerance) return rel;
+            }
+            return null;
+        }
+
+        let isSpacePressed = false;
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                isSpacePressed = true;
+                container.style.cursor = 'grab';
+            }
+        });
+        window.addEventListener('keyup', e => {
+            if (e.code === 'Space') {
+                isSpacePressed = false;
+                container.style.cursor = 'default';
+            }
+        });
+
+        canvas.addEventListener('mousedown', e => {
+            const pos = getCanvasMousePos(e);
+
+            if (e.button === 1 || e.button === 2 || isSpacePressed || e.shiftKey) {
+                state.isPanning = true;
+                state.panStart = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
+                container.style.cursor = 'grabbing';
+                e.preventDefault();
+                return;
+            }
+
+            if (e.button === 0) {
+                const pinHit = hitTestPin(pos);
+                if (pinHit) {
+                    state.isConnecting = true;
+                    state.connectSource = pinHit;
+                    state.mousePos = pos;
+                    draw();
+                    return;
+                }
+
+                const entity = hitTestEntity(pos);
+                if (entity) {
+                    state.selectedEntityId = entity.id;
+                    state.selectedRelId = null;
+                    state.isDraggingEntity = true;
+                    state.dragOffset = { x: pos.x - entity.x, y: pos.y - entity.y };
+                    updateInspector();
+                    draw();
+                    return;
+                }
+
+                const rel = hitTestRelationship(pos);
+                if (rel) {
+                    state.selectedRelId = rel.id;
+                    state.selectedEntityId = null;
+                    updateInspector();
+                    draw();
+                    return;
+                }
+
+                state.selectedEntityId = null;
+                state.selectedRelId = null;
+                state.isPanning = true;
+                state.panStart = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
+                container.style.cursor = 'grabbing';
+                updateInspector();
+                draw();
+            }
+        });
+
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        window.addEventListener('mousemove', e => {
+            const pos = getCanvasMousePos(e);
+            state.mousePos = pos;
+
+            if (state.isPanning) {
+                state.pan.x = e.clientX - state.panStart.x;
+                state.pan.y = e.clientY - state.panStart.y;
+                draw();
+                return;
+            }
+
+            if (state.isConnecting) {
+                draw();
+                return;
+            }
+
+            if (state.isDraggingEntity && state.selectedEntityId) {
+                const entity = state.entities.find(ent => ent.id === state.selectedEntityId);
+                if (entity) {
+                    entity.x = Math.round((pos.x - state.dragOffset.x) / 10) * 10;
+                    entity.y = Math.round((pos.y - state.dragOffset.y) / 10) * 10;
+                    draw();
+                }
+                return;
+            }
+
+            const pinHit = hitTestPin(pos);
+            const entityHit = hitTestEntity(pos);
+            const relHit = hitTestRelationship(pos);
+
+            state.hoveredPin = pinHit;
+            state.hoveredEntityId = entityHit ? entityHit.id : null;
+            state.hoveredRelId = relHit ? relHit.id : null;
+
+            if (isSpacePressed) {
+                container.style.cursor = 'grab';
+            } else if (pinHit) {
+                container.style.cursor = 'pointer';
+            } else if (entityHit) {
+                container.style.cursor = 'move';
+            } else if (relHit) {
+                container.style.cursor = 'pointer';
+            } else {
+                container.style.cursor = 'grab';
+            }
+
+            draw();
+        });
+
+        window.addEventListener('mouseup', e => {
+            if (state.isPanning) {
+                state.isPanning = false;
+                container.style.cursor = isSpacePressed ? 'grab' : 'default';
+            }
+
+            if (state.isConnecting && state.connectSource) {
+                const pos = getCanvasMousePos(e);
+                const target = findConnectTarget(pos);
+
+                if (target && target.entityId !== state.connectSource.entityId) {
+                    const newRel = {
+                        id: 'rel_' + Date.now(),
+                        name: 'relaciona',
+                        sourceId: state.connectSource.entityId,
+                        sourcePin: state.connectSource.pin,
+                        targetId: target.entityId,
+                        targetPin: target.pin,
+                        sourceMin: '1',
+                        sourceMax: '1',
+                        targetMin: '1',
+                        targetMax: 'm'
+                    };
+                    state.relationships.push(newRel);
+                    state.selectedRelId = newRel.id;
+                    state.selectedEntityId = null;
+                    updateInspector();
+                }
+
+                state.isConnecting = false;
+                state.connectSource = null;
+                draw();
+            }
+
+            state.isDraggingEntity = false;
+        });
+
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            const newScale = Math.min(Math.max(0.4, state.scale * zoomFactor), 2.5);
+            state.scale = newScale;
+            document.getElementById('zoom-level').textContent = `${Math.round(state.scale * 100)}%`;
+            draw();
+        }, { passive: false });
+
+        function updateInspector(focusAttrIndex = null) {
+            const emptyEl = document.getElementById('inspector-empty');
+            const entityEl = document.getElementById('inspector-entity');
+            const relEl = document.getElementById('inspector-rel');
+            const badgeEl = document.getElementById('inspector-type-badge');
+
+            if (emptyEl) emptyEl.classList.add('hidden');
+            if (entityEl) entityEl.classList.add('hidden');
+            if (relEl) relEl.classList.add('hidden');
+
+            if (state.selectedEntityId) {
+                const entity = state.entities.find(e => e.id === state.selectedEntityId);
+                if (!entity) return;
+
+                if (badgeEl) badgeEl.textContent = 'ENTIDAD';
+                if (entityEl) entityEl.classList.remove('hidden');
+
+                const inpName = document.getElementById('inp-entity-name');
+                if (inpName) inpName.value = entity.name;
+
+                const listEl = document.getElementById('attr-list');
+                if (listEl) {
+                    listEl.innerHTML = '';
+
+                    entity.attributes.forEach((attr, idx) => {
+                        const row = document.createElement('div');
+                        row.className = 'flex items-center gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200';
+                        row.innerHTML = `
+                            <button class="toggle-pk px-1.5 py-0.5 text-xs font-mono font-bold rounded ${attr.pk ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-500'}" title="Clave Primaria (*)">*</button>
+                            <input type="text" class="attr-name text-xs bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 flex-1 font-mono" value="${attr.name}" placeholder="nombre_atributo">
+                            <button class="toggle-fk px-1 py-0.5 text-[10px] font-mono font-bold rounded ${attr.fk ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}" title="Clave Foránea">FK</button>
+                            <button class="toggle-opt px-1 py-0.5 text-[10px] font-mono font-bold rounded ${attr.optional ? 'bg-purple-600 text-white' : 'bg-slate-200 text-slate-500'}" title="Optativo (?)">?</button>
+                            <button class="btn-del-attr text-slate-400 hover:text-red-500 p-1"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                        `;
+
+                        row.querySelector('.toggle-pk').onclick = () => { attr.pk = !attr.pk; updateInspector(); draw(); };
+                        row.querySelector('.toggle-fk').onclick = () => { attr.fk = !attr.fk; updateInspector(); draw(); };
+                        row.querySelector('.toggle-opt').onclick = () => { attr.optional = !attr.optional; updateInspector(); draw(); };
+                        
+                        const attrInput = row.querySelector('.attr-name');
+                        attrInput.oninput = (e) => { attr.name = e.target.value; draw(); };
+                        attrInput.onkeydown = (e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                entity.attributes.splice(idx + 1, 0, { name: '', pk: false, fk: false, optional: false });
+                                updateInspector(idx + 1);
+                                draw();
+                            }
+                        };
+
+                        row.querySelector('.btn-del-attr').onclick = () => {
+                            entity.attributes.splice(idx, 1);
+                            updateInspector();
+                            draw();
+                        };
+
+                        listEl.appendChild(row);
+                    });
+
+                    if (focusAttrIndex !== null) {
+                        const inputs = listEl.querySelectorAll('.attr-name');
+                        if (inputs[focusAttrIndex]) {
+                            inputs[focusAttrIndex].focus();
+                            inputs[focusAttrIndex].select();
+                        }
+                    }
+                }
+
+                if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+            } else if (state.selectedRelId) {
+                const rel = state.relationships.find(r => r.id === state.selectedRelId);
+                if (!rel) return;
+
+                const srcEntity = state.entities.find(e => e.id === rel.sourceId);
+                const tgtEntity = state.entities.find(e => e.id === rel.targetId);
+
+                if (badgeEl) badgeEl.textContent = 'RELACIÓN';
+                if (relEl) relEl.classList.remove('hidden');
+
+                const inpRelName = document.getElementById('inp-rel-name');
+                const lblSrc = document.getElementById('lbl-source-entity');
+                const lblTgt = document.getElementById('lbl-target-entity');
+
+                if (inpRelName) inpRelName.value = rel.name || '';
+                if (lblSrc) lblSrc.textContent = srcEntity ? srcEntity.name : 'Origen';
+                if (lblTgt) lblTgt.textContent = tgtEntity ? tgtEntity.name : 'Destino';
+
+                const selSMin = document.getElementById('sel-source-min');
+                const selSMax = document.getElementById('sel-source-max');
+                const selTMin = document.getElementById('sel-target-min');
+                const selTMax = document.getElementById('sel-target-max');
+
+                if (selSMin) selSMin.value = rel.sourceMin;
+                if (selSMax) selSMax.value = rel.sourceMax;
+                if (selTMin) selTMin.value = rel.targetMin;
+                if (selTMax) selTMax.value = rel.targetMax;
+            } else {
+                if (badgeEl) badgeEl.textContent = 'NADA SELECCIONADO';
+                if (emptyEl) emptyEl.classList.remove('hidden');
+            }
+        }
+
+        function runCompilerValidation() {
+            const contentArea = document.getElementById('compiler-content-area');
+            const summaryText = document.getElementById('compiler-summary-text');
+            const loadingEl = document.getElementById('compiler-loading');
+            const resultsList = document.getElementById('compiler-results-list');
+            const scoreBadge = document.getElementById('compiler-score-badge');
+
+            if (contentArea) contentArea.classList.remove('hidden');
+            if (loadingEl) loadingEl.classList.remove('hidden');
+            if (resultsList) resultsList.innerHTML = '';
+
+            setTimeout(() => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+
+                const issues = [];
+                let score = 100;
+
+                if (state.entities.length === 0) {
+                    issues.push({
+                        type: 'warning',
+                        title: 'Canvas Vacío',
+                        message: 'No hay entidades en el diagrama. Agrega una nueva entidad para comenzar.'
+                    });
+                    score -= 50;
+                }
+
+                state.entities.forEach(ent => {
+                    const hasPk = ent.attributes.some(a => a.pk);
+                    if (!hasPk) {
+                        issues.push({
+                            type: 'error',
+                            title: `Falta Clave Primaria en "${ent.name}"`,
+                            message: `La entidad "${ent.name}" debe tener al menos un atributo marcado como Clave Primaria (*).`
+                        });
+                        score -= 15;
+                    }
+
+                    if (ent.attributes.length === 0) {
+                        issues.push({
+                            type: 'warning',
+                            title: `Entidad Vacía "${ent.name}"`,
+                            message: `La entidad "${ent.name}" no tiene atributos definidos.`
+                        });
+                        score -= 10;
+                    }
+                });
+
+                state.relationships.forEach(rel => {
+                    const src = state.entities.find(e => e.id === rel.sourceId);
+                    const tgt = state.entities.find(e => e.id === rel.targetId);
+
+                    if (rel.sourceMax === 'm' && rel.targetMax === 'm') {
+                        issues.push({
+                            type: 'warning',
+                            title: `Relación Muchos a Muchos (m:n) entre "${src?.name}" y "${tgt?.name}"`,
+                            message: `En un modelo relacional estricto, la relación m:n debe resolverse con una tabla intermedia/de unión.`
+                        });
+                        score -= 10;
+                    }
+                });
+
+                if (score < 0) score = 0;
+
+                if (scoreBadge) {
+                    scoreBadge.textContent = `${score}/100`;
+                    scoreBadge.className = `font-mono font-bold text-[11px] px-2 py-0.5 rounded ${
+                        score >= 80 ? 'bg-emerald-100 text-emerald-800' : (score >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800')
+                    }`;
+                }
+
+                if (summaryText) {
+                    summaryText.textContent = issues.length === 0
+                        ? '¡Excelente! El esquema DER cumple con todas las reglas de integridad estructural analizadas.'
+                        : `Evaluación completada: Se encontraron ${issues.length} observacione(s) que requieren revisión.`;
+                }
+
+                if (resultsList) {
+                    if (issues.length === 0) {
+                        resultsList.innerHTML = `
+                            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2.5 text-emerald-800">
+                                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0"></i>
+                                <div>
+                                    <h4 class="font-bold text-xs">Diagrama Validado</h4>
+                                    <p class="text-[11px]">No se detectaron errores de claves primarias o entidades huérfanas.</p>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        issues.forEach(iss => {
+                            const isErr = iss.type === 'error';
+                            const card = document.createElement('div');
+                            card.className = `p-3 rounded-lg border text-xs flex items-start gap-2.5 ${
+                                isErr ? 'bg-red-50 border-red-200 text-red-900' : 'bg-amber-50 border-amber-200 text-amber-900'
+                            }`;
+                            card.innerHTML = `
+                                <i data-lucide="${isErr ? 'alert-octagon' : 'alert-triangle'}" class="w-4 h-4 ${isErr ? 'text-red-600' : 'text-amber-600'} shrink-0 mt-0.5"></i>
+                                <div class="space-y-0.5">
+                                    <h4 class="font-bold">${iss.title}</h4>
+                                    <p class="text-[11px] opacity-90 leading-relaxed">${iss.message}</p>
+                                </div>
+                            `;
+                            resultsList.appendChild(card);
+                        });
+                    }
+                    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+                }
+            }, 300);
+        }
+
+        function initEvents() {
+            const modalNewDer = document.getElementById('modal-new-der');
+            const btnNewDer = document.getElementById('btn-new-der');
+            const btnCloseNewDer = document.getElementById('btn-close-new-der');
+            const btnCancelNewDer = document.getElementById('btn-cancel-new-der');
+            const btnConfirmNewDer = document.getElementById('btn-confirm-new-der');
+            const inpModalName = document.getElementById('inp-modal-project-name');
+
+            if (btnNewDer) {
+                btnNewDer.onclick = () => {
+                    if (inpModalName) inpModalName.value = generateTimestampName();
+                    if (modalNewDer) modalNewDer.classList.remove('hidden');
+                };
+            }
+
+            const closeModal = () => {
+                if (modalNewDer) modalNewDer.classList.add('hidden');
+            };
+
+            if (btnCloseNewDer) btnCloseNewDer.onclick = closeModal;
+            if (btnCancelNewDer) btnCancelNewDer.onclick = closeModal;
+
+            if (btnConfirmNewDer) {
+                btnConfirmNewDer.onclick = () => {
+                    const newName = inpModalName ? inpModalName.value.trim() : '';
+                    createNewProject(newName || generateTimestampName());
+                    closeModal();
+                };
+            }
+
+            const btnSaveCache = document.getElementById('btn-save-cache');
+            if (btnSaveCache) {
+                btnSaveCache.onclick = () => {
+                    saveToCache(true);
+                };
+            }
+
+            const btnDownloadDer = document.getElementById('btn-download-der');
+            if (btnDownloadDer) {
+                btnDownloadDer.onclick = () => {
+                    const fileName = (state.projectName || generateTimestampName()).replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const projectData = {
+                        appName: "DER Designer",
+                        version: "1.0",
+                        timestamp: new Date().toISOString(),
+                        projectName: state.projectName,
+                        entities: state.entities,
+                        relationships: state.relationships,
+                        pan: state.pan,
+                        scale: state.scale
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.href = url;
+                    downloadAnchor.download = `${fileName}.der`;
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    
+                    // Cleanup
+                    setTimeout(() => {
+                        document.body.removeChild(downloadAnchor);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                };
+            }
+
+            const btnLoadFile = document.getElementById('btn-load-file');
+            const inpLoadFile = document.getElementById('inp-load-file');
+            if (btnLoadFile && inpLoadFile) {
+                btnLoadFile.onclick = () => {
+                    inpLoadFile.value = '';
+                    inpLoadFile.click();
+                };
+
+                inpLoadFile.onchange = (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const parsed = JSON.parse(event.target.result);
+                            if (parsed && Array.isArray(parsed.entities) && Array.isArray(parsed.relationships)) {
+                                state.projectName = parsed.projectName || file.name.replace(/\.(der|json)$/i, '');
+                                state.entities = parsed.entities;
+                                state.relationships = parsed.relationships;
+                                if (parsed.pan) state.pan = parsed.pan;
+                                if (parsed.scale) state.scale = parsed.scale;
+                                state.selectedEntityId = null;
+                                state.selectedRelId = null;
+
+                                updateHeaderTitle();
+                                saveToCache(false);
+                                updateInspector();
+                                draw();
+                            }
+                        } catch (err) {
+                            console.error('Error al abrir el archivo .der:', err);
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+            }
+
+            const compilerDrawer = document.getElementById('compiler-drawer');
+            const dragHandle = document.getElementById('compiler-drag-handle');
+            const compilerContentArea = document.getElementById('compiler-content-area');
+            const btnRunCompiler = document.getElementById('btn-run-compiler');
+
+            let isResizingCompiler = false;
+            let startY = 0;
+            let startHeight = 0;
+
+            function setCompilerHeight(height) {
+                const minH = 52;
+                const maxH = Math.min(window.innerHeight * 0.7, 520);
+                const clampedH = Math.max(minH, Math.min(height, maxH));
+
+                compilerDrawer.style.height = `${clampedH}px`;
+
+                if (clampedH > 60) {
+                    compilerContentArea.classList.remove('hidden');
+                } else {
+                    compilerContentArea.classList.add('hidden');
+                }
+            }
+
+            if (dragHandle) {
+                dragHandle.addEventListener('mousedown', (e) => {
+                    isResizingCompiler = true;
+                    startY = e.clientY;
+                    startHeight = compilerDrawer.offsetHeight;
+                    document.body.style.cursor = 'ns-resize';
+                    e.preventDefault();
+                });
+            }
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isResizingCompiler) return;
+                const deltaY = startY - e.clientY;
+                setCompilerHeight(startHeight + deltaY);
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isResizingCompiler) {
+                    isResizingCompiler = false;
+                    document.body.style.cursor = 'default';
+                }
+            });
+
+            if (btnRunCompiler) {
+                btnRunCompiler.onclick = () => {
+                    setCompilerHeight(250);
+                    runCompilerValidation();
+                };
+            }
+
+            const btnAdd = document.getElementById('btn-add-entity');
+            if (btnAdd) {
+                btnAdd.onclick = () => {
+                    const newEntity = {
+                        id: 'e_' + Date.now(),
+                        x: 200 + Math.random() * 40,
+                        y: 150 + Math.random() * 40,
+                        name: 'Nueva_Entidad',
+                        color: '#2563eb',
+                        attributes: [
+                            { name: 'id', pk: true, fk: false, optional: false },
+                            { name: 'campo', pk: false, fk: false, optional: false }
+                        ]
+                    };
+                    state.entities.push(newEntity);
+                    state.selectedEntityId = newEntity.id;
+                    state.selectedRelId = null;
+                    saveToCache(false);
+                    updateInspector();
+                    draw();
+                };
+            }
+
+            const inpEntityName = document.getElementById('inp-entity-name');
+            if (inpEntityName) {
+                inpEntityName.oninput = (e) => {
+                    if (state.selectedEntityId) {
+                        const entity = state.entities.find(ent => ent.id === state.selectedEntityId);
+                        if (entity) {
+                            entity.name = e.target.value;
+                            saveToCache(false);
+                            draw();
+                        }
+                    }
+                };
+            }
+
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.onclick = () => {
+                    if (state.selectedEntityId) {
+                        const entity = state.entities.find(ent => ent.id === state.selectedEntityId);
+                        if (entity) {
+                            entity.color = btn.dataset.color;
+                            saveToCache(false);
+                            draw();
+                        }
+                    }
+                };
+            });
+
+            const btnAddAttr = document.getElementById('btn-add-attr');
+            if (btnAddAttr) {
+                btnAddAttr.onclick = () => {
+                    if (state.selectedEntityId) {
+                        const entity = state.entities.find(ent => ent.id === state.selectedEntityId);
+                        if (entity) {
+                            entity.attributes.push({ name: '', pk: false, fk: false, optional: false });
+                            saveToCache(false);
+                            updateInspector(entity.attributes.length - 1);
+                            draw();
+                        }
+                    }
+                };
+            }
+
+            const btnDelEntity = document.getElementById('btn-delete-entity');
+            if (btnDelEntity) {
+                btnDelEntity.onclick = () => {
+                    if (state.selectedEntityId) {
+                        const id = state.selectedEntityId;
+                        state.entities = state.entities.filter(e => e.id !== id);
+                        state.relationships = state.relationships.filter(r => r.sourceId !== id && r.targetId !== id);
+                        state.selectedEntityId = null;
+                        saveToCache(false);
+                        updateInspector();
+                        draw();
+                    }
+                };
+            }
+
+            const inpRelName = document.getElementById('inp-rel-name');
+            if (inpRelName) {
+                inpRelName.oninput = (e) => {
+                    if (state.selectedRelId) {
+                        const rel = state.relationships.find(r => r.id === state.selectedRelId);
+                        if (rel) {
+                            rel.name = e.target.value;
+                            saveToCache(false);
+                            draw();
+                        }
+                    }
+                };
+            }
+
+            document.querySelectorAll('.rel-preset-btn').forEach(btn => {
+                btn.onclick = () => {
+                    if (state.selectedRelId) {
+                        const rel = state.relationships.find(r => r.id === state.selectedRelId);
+                        if (rel) {
+                            rel.sourceMin = btn.dataset.smin;
+                            rel.sourceMax = btn.dataset.smax;
+                            rel.targetMin = btn.dataset.tmin;
+                            rel.targetMax = btn.dataset.tmax;
+                            saveToCache(false);
+                            updateInspector();
+                            draw();
+                        }
+                    }
+                };
+            });
+
+            const selSMin = document.getElementById('sel-source-min');
+            const selSMax = document.getElementById('sel-source-max');
+            const selTMin = document.getElementById('sel-target-min');
+            const selTMax = document.getElementById('sel-target-max');
+
+            if (selSMin) selSMin.onchange = (e) => { if (state.selectedRelId) { const r = state.relationships.find(rel => rel.id === state.selectedRelId); if (r) { r.sourceMin = e.target.value; saveToCache(false); draw(); } } };
+            if (selSMax) selSMax.onchange = (e) => { if (state.selectedRelId) { const r = state.relationships.find(rel => rel.id === state.selectedRelId); if (r) { r.sourceMax = e.target.value; saveToCache(false); draw(); } } };
+            if (selTMin) selTMin.onchange = (e) => { if (state.selectedRelId) { const r = state.relationships.find(rel => rel.id === state.selectedRelId); if (r) { r.targetMin = e.target.value; saveToCache(false); draw(); } } };
+            if (selTMax) selTMax.onchange = (e) => { if (state.selectedRelId) { const r = state.relationships.find(rel => rel.id === state.selectedRelId); if (r) { r.targetMax = e.target.value; saveToCache(false); draw(); } } };
+
+            const btnDelRel = document.getElementById('btn-delete-rel');
+            if (btnDelRel) {
+                btnDelRel.onclick = () => {
+                    if (state.selectedRelId) {
+                        state.relationships = state.relationships.filter(r => r.id !== state.selectedRelId);
+                        state.selectedRelId = null;
+                        saveToCache(false);
+                        updateInspector();
+                        draw();
+                    }
+                };
+            }
+
+            const openSqlModal = () => {
+                let sql = `-- Código SQL generado automáticamente\n\n`;
+
+                state.entities.forEach(entity => {
+                    sql += `CREATE TABLE ${entity.name.replace(/\s+/g, '_')} (\n`;
+                    const pks = [];
+                    const lines = [];
+
+                    entity.attributes.forEach(attr => {
+                        const cleanName = attr.name.replace(/\?/g, '').trim().replace(/\s+/g, '_');
+                        let colDef = `  ${cleanName} VARCHAR(100)`;
+                        if (!attr.optional) colDef += ` NOT NULL`;
+                        lines.push(colDef);
+                        if (attr.pk) pks.push(cleanName);
+                    });
+
+                    if (pks.length > 0) {
+                        lines.push(`  PRIMARY KEY (${pks.join(', ')})`);
+                    }
+
+                    sql += lines.join(',\n');
+                    sql += `\n);\n\n`;
+                });
+
+                const codeEl = document.getElementById('code-sql');
+                const modalEl = document.getElementById('modal-sql');
+                if (codeEl) codeEl.textContent = sql;
+                if (modalEl) modalEl.classList.remove('hidden');
+            };
+
+            const btnExportSqlFooter = document.getElementById('btn-export-sql-footer');
+            if (btnExportSqlFooter) btnExportSqlFooter.onclick = openSqlModal;
+
+            const btnCloseSql = document.getElementById('btn-close-sql');
+            if (btnCloseSql) {
+                btnCloseSql.onclick = () => {
+                    const modalEl = document.getElementById('modal-sql');
+                    if (modalEl) modalEl.classList.add('hidden');
+                };
+            }
+
+            const btnCopySql = document.getElementById('btn-copy-sql');
+            if (btnCopySql) {
+                btnCopySql.onclick = () => {
+                    const codeEl = document.getElementById('code-sql');
+                    if (!codeEl) return;
+                    const code = codeEl.textContent;
+
+                    const textArea = document.createElement('textarea');
+                    textArea.value = code;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                    } catch (err) {
+                        console.error('Error al copiar', err);
+                    }
+                    document.body.removeChild(textArea);
+
+                    btnCopySql.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> ¡Copiado!`;
+                    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+                    setTimeout(() => {
+                        btnCopySql.innerHTML = `<i data-lucide="copy" class="w-4 h-4"></i> Copiar Código`;
+                        if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+                    }, 2000);
+                };
+            }
+
+            const btnZoomIn = document.getElementById('btn-zoom-in');
+            const btnZoomOut = document.getElementById('btn-zoom-out');
+            const btnZoomReset = document.getElementById('btn-zoom-reset');
+
+            if (btnZoomIn) {
+                btnZoomIn.onclick = () => {
+                    state.scale = Math.min(2.5, state.scale + 0.15);
+                    const zoomLbl = document.getElementById('zoom-level');
+                    if (zoomLbl) zoomLbl.textContent = `${Math.round(state.scale * 100)}%`;
+                    draw();
+                };
+            }
+            if (btnZoomOut) {
+                btnZoomOut.onclick = () => {
+                    state.scale = Math.max(0.4, state.scale - 0.15);
+                    const zoomLbl = document.getElementById('zoom-level');
+                    if (zoomLbl) zoomLbl.textContent = `${Math.round(state.scale * 100)}%`;
+                    draw();
+                };
+            }
+            if (btnZoomReset) {
+                btnZoomReset.onclick = () => {
+                    state.scale = 1;
+                    state.pan = { x: 0, y: 0 };
+                    const zoomLbl = document.getElementById('zoom-level');
+                    if (zoomLbl) zoomLbl.textContent = `100%`;
+                    draw();
+                };
+            }
+        }
+
+        window.onload = () => {
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+
+            const resizeObserver = new ResizeObserver(() => {
+                resizeCanvas();
+            });
+            resizeObserver.observe(container);
+
+            resizeCanvas();
+
+            const hasCached = loadFromCache();
+            if (!hasCached) {
+                createNewProject();
+            }
+
+            initEvents();
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+        };
+    </script>
+</body>
+</html>
