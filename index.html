@@ -2,19 +2,57 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>DER Designer - Canvas Engine</title>
     <script src="https://cdn.tailwindcss.com"></script> 
     <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body {
+        html, body {
             font-family: 'Inter', sans-serif;
             user-select: none;
+            -webkit-user-select: none;
             overflow: hidden;
+            /* Use dynamic viewport units so iOS Safari toolbars don't clip content */
+            height: 100vh;
+            height: 100dvh;
+            width: 100vw;
+            width: 100dvw;
+            overscroll-behavior: none;
         }
         .font-mono {
             font-family: 'JetBrains Mono', monospace;
+        }
+        /* Canvas must own all touch gestures (drag, pinch) instead of the browser */
+        #canvas-container, #der-canvas {
+            touch-action: none;
+            -ms-touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        /* Inspector becomes a slide-over drawer on tablets/phones */
+        @media (max-width: 1023px) {
+            #inspector-panel {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                right: 0;
+                width: 22rem;
+                max-width: 85vw;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                z-index: 50;
+            }
+            #inspector-panel.open {
+                transform: translateX(0);
+            }
+        }
+        @media (min-width: 1024px) {
+            /* Backdrop and drawer chrome only matter on small screens */
+            #inspector-backdrop, #btn-toggle-inspector, .inspector-close {
+                display: none !important;
+            }
         }
         ::-webkit-scrollbar {
             width: 6px;
@@ -34,36 +72,36 @@
 </head>
 <body class="bg-slate-100 h-screen w-screen flex flex-col text-slate-800 antialiased overflow-hidden">
 
-    <header class="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-20 shrink-0 text-slate-800 shadow-sm">
-        <div class="flex items-center gap-3">
-            <div class="bg-blue-600 p-2 rounded-lg text-white shadow-md shadow-blue-500/20">
+    <header class="h-14 bg-white border-b border-slate-200 px-2 sm:px-4 flex items-center justify-between gap-2 z-20 shrink-0 text-slate-800 shadow-sm">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="bg-blue-600 p-2 rounded-lg text-white shadow-md shadow-blue-500/20 shrink-0">
                 <i data-lucide="database" class="w-5 h-5"></i>
             </div>
-            <div>
-                <h1 id="header-project-title" class="font-bold text-sm leading-none text-slate-900 tracking-wide">DER Designer</h1>
+            <div class="min-w-0">
+                <h1 id="header-project-title" class="font-bold text-sm leading-none text-slate-900 tracking-wide truncate">DER Designer</h1>
             </div>
         </div>
 
         <!-- Header Actions -->
-        <div class="flex items-center gap-2">
-            <button id="btn-new-der" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 border border-slate-300 px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Crear un nuevo diagrama DER">
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button id="btn-new-der" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 border border-slate-300 px-2.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Crear un nuevo diagrama DER">
                 <i data-lucide="file-plus" class="w-4 h-4 text-blue-600"></i>
-                <span>Nuevo DER</span>
+                <span class="hidden sm:inline">Nuevo DER</span>
             </button>
 
-            <div class="h-5 w-px bg-slate-200 mx-0.5"></div>
+            <div class="hidden sm:block h-5 w-px bg-slate-200 mx-0.5"></div>
 
-            <button id="btn-save-cache" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Guardar proyecto en el caché del navegador">
+            <button id="btn-save-cache" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Guardar proyecto en el caché del navegador">
                 <i data-lucide="save" class="w-4 h-4 text-emerald-600"></i>
-                <span>Guardar</span>
+                <span class="hidden sm:inline">Guardar</span>
             </button>
-            <button id="btn-load-file" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Cargar proyecto desde un archivo .der o .json">
+            <button id="btn-load-file" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Cargar proyecto desde un archivo .der o .json">
                 <i data-lucide="folder-open" class="w-4 h-4 text-amber-600"></i>
-                <span>Cargar</span>
+                <span class="hidden sm:inline">Cargar</span>
             </button>
-            <button id="btn-download-der" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Descargar archivo .der del diagrama">
+            <button id="btn-download-der" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 px-2.5 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Descargar archivo .der del diagrama">
                 <i data-lucide="download" class="w-4 h-4 text-blue-600"></i>
-                <span>Descargar</span>
+                <span class="hidden sm:inline">Descargar</span>
             </button>
             <input type="file" id="inp-load-file" accept=".der,.json,application/json" class="hidden" />
         </div>
@@ -104,27 +142,28 @@
             <!-- Bottom Resizable Compiler Footer Drawer -->
             <div id="compiler-drawer" class="bg-white border-t border-slate-200 flex flex-col z-30 shadow-2xl relative shrink-0 transition-none" style="height: 52px;">
                 
-                <div id="compiler-drag-handle" class="h-2 w-full bg-slate-100 hover:bg-slate-200 cursor-ns-resize flex items-center justify-center border-b border-slate-200 shrink-0 group transition-colors">
+                <div id="compiler-drag-handle" class="h-3 sm:h-2 w-full bg-slate-100 hover:bg-slate-200 cursor-ns-resize flex items-center justify-center border-b border-slate-200 shrink-0 group transition-colors" style="touch-action: none;">
                     <div class="w-12 h-1 bg-slate-300 group-hover:bg-slate-400 rounded-full transition-colors"></div>
                 </div>
 
-                <div class="h-12 px-4 bg-slate-50 flex items-center justify-between shrink-0 select-none border-b border-slate-200">
-                    <div class="flex items-center gap-3">
-                        <div class="flex items-center gap-2 font-bold text-xs text-purple-900">
-                            <i data-lucide="shield-check" class="w-4 h-4 text-purple-600"></i>
-                            <span>Compilador & Evaluación Semántica DER</span>
+                <div class="h-12 px-2 sm:px-4 bg-slate-50 flex items-center justify-between gap-2 shrink-0 select-none border-b border-slate-200">
+                    <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div class="flex items-center gap-2 font-bold text-xs text-purple-900 min-w-0">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-purple-600 shrink-0"></i>
+                            <span class="hidden md:inline truncate">Compilador & Evaluación Semántica DER</span>
+                            <span class="md:hidden truncate">Compilador</span>
                         </div>
-                        <span id="compiler-score-badge" class="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700">--/100</span>
+                        <span id="compiler-score-badge" class="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 shrink-0">--/100</span>
                     </div>
 
-                    <div class="flex items-center gap-2 py-1">
+                    <div class="flex items-center gap-1.5 sm:gap-2 py-1 shrink-0">
                         <button id="btn-export-sql-footer" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition">
                             <i data-lucide="code" class="w-3.5 h-3.5"></i>
-                            <span>Ver SQL</span>
+                            <span class="hidden sm:inline">Ver SQL</span>
                         </button>
-                        <button id="btn-run-compiler" class="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition">
+                        <button id="btn-run-compiler" class="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3 sm:px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition">
                             <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                            <span>Ejecutar Compilador</span>
+                            <span class="hidden sm:inline">Ejecutar Compilador</span>
                         </button>
                     </div>
                 </div>
@@ -152,12 +191,17 @@
         <!-- Right Inspector Sidebar -->
         <aside id="inspector-panel" class="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-lg">
             
-            <div class="border-b border-slate-200 bg-slate-50/80 px-4 py-3 flex items-center justify-between">
-                <div class="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                    <i data-lucide="sliders" class="w-4 h-4 text-blue-600"></i>
-                    <span>Inspector de Propiedades</span>
+            <div class="border-b border-slate-200 bg-slate-50/80 px-4 py-3 flex items-center justify-between gap-2">
+                <div class="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-1.5 min-w-0">
+                    <i data-lucide="sliders" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                    <span class="truncate">Inspector de Propiedades</span>
                 </div>
-                <span id="inspector-type-badge" class="font-mono font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px]">NADA SELECCIONADO</span>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <span id="inspector-type-badge" class="font-mono font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px]">NADA SELECCIONADO</span>
+                    <button class="inspector-close text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition" title="Cerrar inspector">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
 
             <div id="panel-inspector-content" class="flex-1 overflow-y-auto p-4 space-y-5 text-slate-700 text-xs">
@@ -288,6 +332,14 @@
                 </div>
             </div>
         </aside>
+
+        <!-- Backdrop behind the inspector drawer on small screens -->
+        <div id="inspector-backdrop" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"></div>
+
+        <!-- Floating toggle to open the inspector on tablets/phones -->
+        <button id="btn-toggle-inspector" class="lg:hidden fixed bottom-20 right-4 z-30 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition" title="Mostrar Inspector de Propiedades">
+            <i data-lucide="sliders" class="w-5 h-5"></i>
+        </button>
 
     </div>
 
@@ -876,10 +928,88 @@
             }
         });
 
-        canvas.addEventListener('mousedown', e => {
-            const pos = getCanvasMousePos(e);
+        // ----- Unified pointer input (mouse, touch, pen) -----
+        // Pointer Events give us a single code path for desktop mouse, iPad/tablet
+        // touch, and Apple Pencil. Two active touch pointers switch to pinch mode.
+        const activePointers = new Map();
+        let pinchState = null;
 
-            if (e.button === 1 || e.button === 2 || isSpacePressed || e.shiftKey) {
+        function setZoomLabel() {
+            const zoomLbl = document.getElementById('zoom-level');
+            if (zoomLbl) zoomLbl.textContent = `${Math.round(state.scale * 100)}%`;
+        }
+
+        function cancelActiveInteraction() {
+            // Abort any single-pointer gesture (used when a 2nd finger starts a pinch)
+            if (state.isDraggingEntity || state.isPanning || state.isConnecting) {
+                state.isDraggingEntity = false;
+                state.isPanning = false;
+                state.isConnecting = false;
+                state.connectSource = null;
+                container.style.cursor = 'default';
+                draw();
+            }
+        }
+
+        function getPinchMetrics() {
+            const pts = [...activePointers.values()];
+            const rect = canvas.getBoundingClientRect();
+            const dx = pts[0].clientX - pts[1].clientX;
+            const dy = pts[0].clientY - pts[1].clientY;
+            return {
+                dist: Math.hypot(dx, dy),
+                midX: (pts[0].clientX + pts[1].clientX) / 2 - rect.left,
+                midY: (pts[0].clientY + pts[1].clientY) / 2 - rect.top
+            };
+        }
+
+        function beginPinch() {
+            const m = getPinchMetrics();
+            pinchState = {
+                startDist: m.dist,
+                startScale: state.scale,
+                startPan: { x: state.pan.x, y: state.pan.y },
+                startMidX: m.midX,
+                startMidY: m.midY
+            };
+        }
+
+        function updatePinch() {
+            if (!pinchState) return;
+            const m = getPinchMetrics();
+            if (!pinchState.startDist) return;
+            const ratio = m.dist / pinchState.startDist;
+            const newScale = Math.min(Math.max(0.4, pinchState.startScale * ratio), 2.5);
+            // World point under the initial pinch midpoint, kept anchored while
+            // also letting the two-finger drag pan the canvas.
+            const wx = (pinchState.startMidX - pinchState.startPan.x) / pinchState.startScale;
+            const wy = (pinchState.startMidY - pinchState.startPan.y) / pinchState.startScale;
+            state.scale = newScale;
+            state.pan.x = m.midX - wx * newScale;
+            state.pan.y = m.midY - wy * newScale;
+            setZoomLabel();
+            draw();
+        }
+
+        function onPointerDown(e) {
+            activePointers.set(e.pointerId, e);
+            if (canvas.setPointerCapture) {
+                try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+            }
+
+            if (activePointers.size === 2) {
+                cancelActiveInteraction();
+                beginPinch();
+                e.preventDefault();
+                return;
+            }
+            if (activePointers.size > 2) return;
+
+            const pos = getCanvasMousePos(e);
+            const isPanGesture = e.button === 1 || e.button === 2 || isSpacePressed ||
+                (e.pointerType === 'mouse' && e.shiftKey);
+
+            if (isPanGesture) {
                 state.isPanning = true;
                 state.panStart = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
                 container.style.cursor = 'grabbing';
@@ -887,49 +1017,56 @@
                 return;
             }
 
-            if (e.button === 0) {
-                const pinHit = hitTestPin(pos);
-                if (pinHit) {
-                    state.isConnecting = true;
-                    state.connectSource = pinHit;
-                    state.mousePos = pos;
-                    draw();
-                    return;
-                }
+            // Primary button (mouse) or touch/pen contact
+            if (e.button !== 0 && e.pointerType === 'mouse') return;
 
-                const entity = hitTestEntity(pos);
-                if (entity) {
-                    state.selectedEntityId = entity.id;
-                    state.selectedRelId = null;
-                    state.isDraggingEntity = true;
-                    state.dragOffset = { x: pos.x - entity.x, y: pos.y - entity.y };
-                    updateInspector();
-                    draw();
-                    return;
-                }
+            const pinHit = hitTestPin(pos);
+            if (pinHit) {
+                state.isConnecting = true;
+                state.connectSource = pinHit;
+                state.mousePos = pos;
+                draw();
+                return;
+            }
 
-                const rel = hitTestRelationship(pos);
-                if (rel) {
-                    state.selectedRelId = rel.id;
-                    state.selectedEntityId = null;
-                    updateInspector();
-                    draw();
-                    return;
-                }
-
-                state.selectedEntityId = null;
+            const entity = hitTestEntity(pos);
+            if (entity) {
+                state.selectedEntityId = entity.id;
                 state.selectedRelId = null;
-                state.isPanning = true;
-                state.panStart = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
-                container.style.cursor = 'grabbing';
+                state.isDraggingEntity = true;
+                state.dragOffset = { x: pos.x - entity.x, y: pos.y - entity.y };
                 updateInspector();
                 draw();
+                return;
             }
-        });
 
-        canvas.addEventListener('contextmenu', e => e.preventDefault());
+            const rel = hitTestRelationship(pos);
+            if (rel) {
+                state.selectedRelId = rel.id;
+                state.selectedEntityId = null;
+                updateInspector();
+                draw();
+                return;
+            }
 
-        window.addEventListener('mousemove', e => {
+            state.selectedEntityId = null;
+            state.selectedRelId = null;
+            state.isPanning = true;
+            state.panStart = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
+            container.style.cursor = 'grabbing';
+            updateInspector();
+            draw();
+        }
+
+        function onPointerMove(e) {
+            if (activePointers.has(e.pointerId)) activePointers.set(e.pointerId, e);
+
+            if (pinchState && activePointers.size >= 2) {
+                updatePinch();
+                e.preventDefault();
+                return;
+            }
+
             const pos = getCanvasMousePos(e);
             state.mousePos = pos;
 
@@ -955,6 +1092,9 @@
                 return;
             }
 
+            // Hover feedback is only meaningful for a mouse/pen
+            if (e.pointerType === 'touch') return;
+
             const pinHit = hitTestPin(pos);
             const entityHit = hitTestEntity(pos);
             const relHit = hitTestRelationship(pos);
@@ -976,9 +1116,23 @@
             }
 
             draw();
-        });
+        }
 
-        window.addEventListener('mouseup', e => {
+        function onPointerUp(e) {
+            const wasPinching = pinchState && activePointers.size >= 2;
+            activePointers.delete(e.pointerId);
+            if (canvas.releasePointerCapture && canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
+                try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+            }
+
+            if (activePointers.size < 2) pinchState = null;
+
+            if (wasPinching) {
+                // Finishing a pinch should never fall through to click/connect logic
+                saveToCache(false);
+                return;
+            }
+
             if (state.isPanning) {
                 state.isPanning = false;
                 container.style.cursor = isSpacePressed ? 'grab' : 'default';
@@ -1005,6 +1159,7 @@
                     state.selectedRelId = newRel.id;
                     state.selectedEntityId = null;
                     updateInspector();
+                    saveToCache(false);
                 }
 
                 state.isConnecting = false;
@@ -1012,19 +1167,59 @@
                 draw();
             }
 
+            if (state.isDraggingEntity) {
+                state.isDraggingEntity = false;
+                saveToCache(false);
+            }
+        }
+
+        canvas.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointermove', onPointerMove, { passive: false });
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', e => {
+            activePointers.delete(e.pointerId);
+            if (activePointers.size < 2) pinchState = null;
             state.isDraggingEntity = false;
+            state.isPanning = false;
+            state.isConnecting = false;
+            state.connectSource = null;
         });
+
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
 
         canvas.addEventListener('wheel', e => {
             e.preventDefault();
             const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
             const newScale = Math.min(Math.max(0.4, state.scale * zoomFactor), 2.5);
             state.scale = newScale;
-            document.getElementById('zoom-level').textContent = `${Math.round(state.scale * 100)}%`;
+            setZoomLabel();
             draw();
         }, { passive: false });
 
+        function isSmallScreen() {
+            return window.matchMedia('(max-width: 1023px)').matches;
+        }
+
+        function openInspector() {
+            const panel = document.getElementById('inspector-panel');
+            const backdrop = document.getElementById('inspector-backdrop');
+            if (panel) panel.classList.add('open');
+            if (backdrop) backdrop.classList.remove('hidden');
+        }
+
+        function closeInspector() {
+            const panel = document.getElementById('inspector-panel');
+            const backdrop = document.getElementById('inspector-backdrop');
+            if (panel) panel.classList.remove('open');
+            if (backdrop) backdrop.classList.add('hidden');
+        }
+
         function updateInspector(focusAttrIndex = null) {
+            // On small screens the inspector is a slide-over: reveal it whenever a
+            // selection exists so tapping an entity/relation shows its properties.
+            if (isSmallScreen() && (state.selectedEntityId || state.selectedRelId)) {
+                openInspector();
+            }
             const emptyEl = document.getElementById('inspector-empty');
             const entityEl = document.getElementById('inspector-entity');
             const relEl = document.getElementById('inspector-rel');
@@ -1236,6 +1431,19 @@
         }
 
         function initEvents() {
+            // Inspector slide-over drawer (small screens)
+            const btnToggleInspector = document.getElementById('btn-toggle-inspector');
+            const inspectorBackdrop = document.getElementById('inspector-backdrop');
+            if (btnToggleInspector) btnToggleInspector.onclick = openInspector;
+            if (inspectorBackdrop) inspectorBackdrop.onclick = closeInspector;
+            document.querySelectorAll('.inspector-close').forEach(btn => {
+                btn.onclick = closeInspector;
+            });
+            // Keep drawer state sane when rotating / resizing across the breakpoint
+            window.addEventListener('resize', () => {
+                if (!isSmallScreen()) closeInspector();
+            });
+
             const modalNewDer = document.getElementById('modal-new-der');
             const btnNewDer = document.getElementById('btn-new-der');
             const btnCloseNewDer = document.getElementById('btn-close-new-der');
@@ -1366,22 +1574,26 @@
             }
 
             if (dragHandle) {
-                dragHandle.addEventListener('mousedown', (e) => {
+                dragHandle.addEventListener('pointerdown', (e) => {
                     isResizingCompiler = true;
                     startY = e.clientY;
                     startHeight = compilerDrawer.offsetHeight;
                     document.body.style.cursor = 'ns-resize';
+                    if (dragHandle.setPointerCapture) {
+                        try { dragHandle.setPointerCapture(e.pointerId); } catch (_) {}
+                    }
                     e.preventDefault();
                 });
             }
 
-            window.addEventListener('mousemove', (e) => {
+            window.addEventListener('pointermove', (e) => {
                 if (!isResizingCompiler) return;
                 const deltaY = startY - e.clientY;
                 setCompilerHeight(startHeight + deltaY);
-            });
+                e.preventDefault();
+            }, { passive: false });
 
-            window.addEventListener('mouseup', () => {
+            window.addEventListener('pointerup', () => {
                 if (isResizingCompiler) {
                     isResizingCompiler = false;
                     document.body.style.cursor = 'default';
